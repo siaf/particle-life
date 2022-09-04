@@ -42,7 +42,7 @@
             },
             drawings: { // Drawing options can be expensive on performance
                 lines: false, // draw lines between atoms that arr effecting each other
-                circle: false, // draw atoms as circles
+                circle: true, // draw atoms as circles
                 background: {
                     active: false,
                     color: 'black'
@@ -57,10 +57,10 @@
             time_scale: 1.0,
             cutOff: 6400, // interaction distance cut-off
             viscosity: 0.7, // speed-dampening
-            pulseDuration: 10,
+            pulse_duration: 10,
             clear_screen: true,
-            parallel_universe: true,
-            show_dark_matter: false,
+            parallel_universe: false,
+            show_dark_matter: true,
             'Reset': () => {
                 generatePop(settings.population, true)
             },
@@ -80,7 +80,7 @@
         const setupClicks = () => {
             canvas.addEventListener('click',
                 (e) => {
-                    pulse = settings.pulseDuration;
+                    pulse = settings.pulse_duration;
                     pulse_x = e.clientX;
                     pulse_y = e.clientY;
                 }
@@ -93,38 +93,42 @@
         }
         const setupGUI = () => {
             settings.gui = new lil.GUI()
+            settings.gui.add(settings, 'Reset')
+            settings.gui.add(settings, 'Random Rules')
+            settings.gui.add(settings, 'Symmetric Rules')
             const configFolder = settings.gui.addFolder('Config')
-            configFolder.add(settings, 'Reset')
-            configFolder.add(settings, 'Random Rules')
-            configFolder.add(settings, 'Symmetric Rules')
+            
             configFolder.add(settings, 'seed').listen()
             configFolder.add(settings, 'fps').listen().disable()
-            const PopulationFolder = settings.gui.addFolder(`Population:`);
             configFolder.add(settings, 'time_scale', 0.1, 5, 0.01).listen()
             configFolder.add(settings, 'cutOff', 1, 10000, 50).listen()
             configFolder.add(settings, 'viscosity', 0.1, 2, 0.1).listen()
-            configFolder.add(settings, 'pulseDuration', 1, 100, 1).listen()
-            configFolder.add(settings, 'clear_screen').listen();
+            configFolder.add(settings, 'pulse_duration', 1, 100, 1).listen()
+            
             configFolder.add(settings, 'parallel_universe').listen().onFinishChange(v => {
                 generatePop(settings.population, true);
                 flattenRules();
             });
-            configFolder.add(settings, 'show_dark_matter').listen();
+          
             // Drawings
-            const drawingsFolder = settings.gui.addFolder('Drawings')
+            const drawingsFolder = configFolder.addFolder('Drawings')
+            drawingsFolder.add(settings, 'clear_screen').listen();
+            drawingsFolder.add(settings, 'show_dark_matter').listen();
             drawingsFolder.add(settings.drawings, 'circle').listen()
             drawingsFolder.add(settings.drawings, 'lines').listen()
             drawingsFolder.add(settings.drawings.background, 'active').name('Background Color').listen()
             drawingsFolder.addColor(settings.drawings.background, 'color').name('Background Color').listen()
-            const MassFolder = settings.gui.addFolder(`Masses:`);
-            const SizeFolder = settings.gui.addFolder(`Sizes:`);
+            const ParticlesFolder = settings.gui.addFolder(`Particles:`);
+            const PopulationFolder = ParticlesFolder.addFolder(`Population:`);
+            const MassFolder = ParticlesFolder.addFolder(`Masses:`);
+            const SizeFolder = ParticlesFolder.addFolder(`Sizes:`);
             for (const c of settings.colors) {
                 MassFolder.add(settings.masses, c, 1, 200, 0.01).listen();
                 SizeFolder.add(settings.sizes, c, 1, 10, 0.01).listen();
                 PopulationFolder.add(settings.population, c, 1, 1000, 1).listen().onFinishChange(v => {
                     generatePop(settings.population, true)
                 })
-                const colorFolder = settings.gui.addFolder(`Rules: ${c}`)
+                const colorFolder = ParticlesFolder.addFolder(`Rules: ${c}`)
                 for (const c2 of settings.colors) {
                     colorFolder.add(settings.rules[c], c2, -1, 1, 0.001).listen().onFinishChange(v => {
                         flattenRules()
