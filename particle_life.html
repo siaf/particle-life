@@ -33,25 +33,32 @@
         const settings = {
             seed: 91651088029,
             fps: 0,
-            atomsPerColor: 500,
+            population: {
+                'green': 100,
+                'red': 200,
+                'white': 400
+            },
             rules: {},
+            masses: {},
+            sizes: {},
             rulesArray: [],
-            colors: ['green', 'red', 'yellow', 'blue'],
+            colors: ['green', 'red', 'white'],
             time_scale: 1.0,
             cutOff: 6400, // interaction distance cut-off
             viscosity: 0.7, // speed-dampening
             pulseDuration: 10,
+            clear_screen: true,
             'Reset': () => {
-                randomAtoms(settings.atomsPerColor, true)
+                generatePop(settings.population, true)
             },
             'Random Rules': () => {
                 randomRules()
-                randomAtoms(settings.atomsPerColor, true)
+                generatePop(settings.population, true)
                 updateGUIDisplay()
             },
             'Symmetric Rules': () => {
                 symmetricRules()
-                randomAtoms(settings.atomsPerColor, true)
+                generatePop(settings.population, true)
                 updateGUIDisplay()
             },
             gui: null,
@@ -79,15 +86,20 @@
             configFolder.add(settings, 'Symmetric Rules')
             configFolder.add(settings, 'seed').listen()
             configFolder.add(settings, 'fps').listen().disable()
-            configFolder.add(settings, 'atomsPerColor', 1, 1000, 1).listen().onFinishChange(v => {
-                randomAtoms(v, true)
-            })
+            const PopulationFolder = settings.gui.addFolder(`Population:`);
             configFolder.add(settings, 'time_scale', 0.1, 5, 0.01).listen()
             configFolder.add(settings, 'cutOff', 1, 10000, 50).listen()
             configFolder.add(settings, 'viscosity', 0.1, 2, 0.1).listen()
             configFolder.add(settings, 'pulseDuration', 1, 100, 1).listen()
-
+            configFolder.add(settings, 'clear_screen').listen();
+            const MassFolder = settings.gui.addFolder(`Masses:`);
+            const SizeFolder = settings.gui.addFolder(`Sizes:`);
             for (const c of settings.colors) {
+                MassFolder.add(settings.masses, c, 1, 20, 0.01).listen();
+                SizeFolder.add(settings.sizes, c, 1, 10, 0.01).listen();
+                PopulationFolder.add(settings.population, c, 1, 1000, 1).listen().onFinishChange(v => {
+                    generatePop(settings.population, true)
+                })
                 const colorFolder = settings.gui.addFolder(`Rules: ${c}`)
                 for (const c2 of settings.colors) {
                     colorFolder.add(settings.rules[c], c2, -1, 1, 0.001).listen().onFinishChange(v => {
@@ -124,6 +136,8 @@
             console.log("Seed=" + settings.seed);
             window.location.hash = "#" + settings.seed;
             for (var i of settings.colors) {
+                settings.masses[i] = mulberry32() * 15;
+                settings.sizes[i] = mulberry32() * 5;
                 settings.rules[i] = {};
                 for (var j of settings.colors) {
                     settings.rules[i][j] = mulberry32() * 2 - 1;
@@ -171,23 +185,28 @@
             return mulberry32() * (canvas.height - 100) + 50;
         };
 
+        function randomMass() {
+            return Math.pow(mulberry32() * 4, 2);
+        };
+
         /* Create an Atom - Use matrices for x4/5 performance improvement
         atom[0] = x
         atom[1] = y
         atom[2] = ax
         atom[3] = ay
         atom[4] = color (index)
+        atom[5] = mass
         */
         const create = (number, color) => {
             for (let i = 0; i < number; i++) {
-                atoms.push([randomX(), randomY(), 0, 0, color])
+                atoms.push([randomX(), randomY(), 0, 0, color, randomMass()])
             }
         };
 
-        function randomAtoms(number_of_atoms_per_color, clear_previous) {
+        function generatePop(population, clear_previous) {
             if (clear_previous) atoms.length = 0;
             for (let c = 0; c < settings.colors.length; c++) {
-                create(number_of_atoms_per_color, c)
+                create(population[settings.colors[c]], c);
             }
         }
 
@@ -232,8 +251,8 @@
                         const d = dx * dx + dy * dy;
                         if (d < r2) {
                             const F = g / Math.sqrt(d);
-                            fx += F * dx;
-                            fy += F * dy;
+                            fx += F * dx * settings.masses[settings.colors[b[4]]] / settings.masses[settings.colors[a[4]]];
+                            fy += F * dy * settings.masses[settings.colors[b[4]]] / settings.masses[settings.colors[a[4]]];
                         }
                     }
                 }
@@ -288,7 +307,7 @@
 
         // Generate Atoms
         const atoms = []
-        randomAtoms(settings.atomsPerColor, true)
+        generatePop(settings.population, true)
 
 
         setupClicks()
@@ -302,12 +321,17 @@
 
         function update() {
             // Update Canvas Dimensions - if screen size changed
-            updateCanvasDimensions()
+            if (settings.clear_screen) {
+                updateCanvasDimensions();
+            }
 
             applyRules();
-            m.clearRect(0, 0, canvas.width, canvas.height);
+            if (settings.clear_screen) {
+                m.clearRect(0, 0, canvas.width, canvas.height);
+            }
+
             for (let a of atoms) {
-                draw(a[0], a[1], settings.colors[a[4]], 2);
+                draw(a[0], a[1], settings.colors[a[4]], settings.sizes[settings.colors[a[4]]]);
             }
             updateParams();
 
