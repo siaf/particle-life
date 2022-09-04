@@ -40,6 +40,14 @@
                 'yellow': 200,
                 'blue': 200
             },
+            drawings: { // Drawing options can be expensive on performance
+                lines: false, // draw lines between atoms that arr effecting each other
+                circle: false, // draw atoms as circles
+                background: {
+                    active: false,
+                    color: 'black'
+                },
+            },
             rules: {},
             masses: {},
             sizes: {},
@@ -52,7 +60,7 @@
             pulseDuration: 10,
             clear_screen: true,
             parallel_universe: true,
-            show_dark_matter:false,
+            show_dark_matter: false,
             'Reset': () => {
                 generatePop(settings.population, true)
             },
@@ -102,6 +110,12 @@
                 flattenRules();
             });
             configFolder.add(settings, 'show_dark_matter').listen();
+            // Drawings
+            const drawingsFolder = settings.gui.addFolder('Drawings')
+            drawingsFolder.add(settings.drawings, 'circle').listen()
+            drawingsFolder.add(settings.drawings, 'lines').listen()
+            drawingsFolder.add(settings.drawings.background, 'active').name('Background Color').listen()
+            drawingsFolder.addColor(settings.drawings.background, 'color').name('Background Color').listen()
             const MassFolder = settings.gui.addFolder(`Masses:`);
             const SizeFolder = settings.gui.addFolder(`Sizes:`);
             for (const c of settings.colors) {
@@ -256,10 +270,31 @@
         // Canvas
         const canvas = document.getElementById('canvas');
         const m = canvas.getContext("2d");
-        const draw = (x, y, c, s) => {
-            m.fillStyle = c;
-            m.fillRect(x, y, s, s);
+
+        // Draw a square
+        const drawSquare = (x, y, color, width, height) => {
+            m.fillStyle = color;
+            m.fillRect(x, y, width, (height || width));
         }
+
+        // Draw a circl
+        function drawCircle(x, y, color, radius = 1, fill = 1) {
+            m.beginPath();
+            m.arc(x, y, radius, 0 * Math.PI, 2 * Math.PI); // x, y, radius, ArcStart, ArcEnd
+            m.closePath();
+            m.strokeStyle = m.fillStyle = color;
+            fill ? m.fill() : m.stroke()
+        };
+
+        // Draw a line between two atoms
+        function DrawLineBetweenAtoms(ax, ay, bx, by, color) {
+            m.beginPath();
+            m.moveTo(ax, ay);
+            m.lineTo(bx, by);
+            m.closePath();
+            m.strokeStyle = color;
+            m.stroke();
+        };
         // Canvas Dimensions
         updateCanvasDimensions()
 
@@ -290,6 +325,13 @@
                             const F = g / Math.sqrt(d);
                             fx += F * dx * settings.masses[settings.colors[b[4] % settings.colors.length]] / settings.masses[settings.colors[a[4] % settings.colors.length]];
                             fy += F * dy * settings.masses[settings.colors[b[4] % settings.colors.length]] / settings.masses[settings.colors[a[4] % settings.colors.length]];
+
+                            // Draw lines between atoms that are effecting each other
+                            if (settings.drawings.lines) {
+                                if (b[4] < settings.colors.length) {
+                                    DrawLineBetweenAtoms(a[0], a[1], b[0], b[1], settings.colors[b[4] % settings.colors.length]);
+                                }
+                            }
                         }
                     }
                 }
@@ -362,21 +404,34 @@
                 updateCanvasDimensions();
             }
 
-            applyRules();
             if (settings.clear_screen) {
                 m.clearRect(0, 0, canvas.width, canvas.height);
+                // Draw a black background
+                if (settings.drawings.background.active) {
+                    drawSquare(0, 0, settings.drawings.background.color, canvas.width, canvas.height);
+                }
             }
 
+            applyRules();
+
             for (let a of atoms) {
-                var c = settings.colors[a[4]]
+                var color = settings.colors[a[4]]
                 if (a[4] >= settings.colors.length) {
                     if (settings.parallel_universe && settings.show_dark_matter) {
-                        c = settings.colors_inv[a[4] - settings.colors.length];
-                    }else{
+                        color = settings.colors_inv[a[4] - settings.colors.length];
+                    } else {
                         continue;
                     }
                 }
-                draw(a[0], a[1], c, settings.sizes[settings.colors[a[4] % settings.colors.length]]);
+
+                var radius = settings.sizes[settings.colors[a[4] % settings.colors.length]];
+
+                if (settings.drawings.circle) {
+                    drawCircle(a[0], a[1], color, radius);
+                }
+                else {
+                    drawSquare(a[0] - radius, a[1] - radius, color, radius * 2);
+                }
             }
             updateParams();
 
