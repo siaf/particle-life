@@ -36,18 +36,23 @@
             population: {
                 'green': 100,
                 'red': 200,
-                'white': 400
+                'white': 400,
+                'yellow': 200,
+                'blue': 200
             },
             rules: {},
             masses: {},
             sizes: {},
             rulesArray: [],
-            colors: ['green', 'red', 'white'],
+            colors: ['green', 'red', 'white', 'yellow', 'blue'],
+            colors_inv: ['#111', '#222', '#333', '#444', '#555'],
             time_scale: 1.0,
             cutOff: 6400, // interaction distance cut-off
             viscosity: 0.7, // speed-dampening
             pulseDuration: 10,
             clear_screen: true,
+            parallel_universe: true,
+            show_dark_matter:false,
             'Reset': () => {
                 generatePop(settings.population, true)
             },
@@ -92,10 +97,15 @@
             configFolder.add(settings, 'viscosity', 0.1, 2, 0.1).listen()
             configFolder.add(settings, 'pulseDuration', 1, 100, 1).listen()
             configFolder.add(settings, 'clear_screen').listen();
+            configFolder.add(settings, 'parallel_universe').listen().onFinishChange(v => {
+                generatePop(settings.population, true);
+                flattenRules();
+            });
+            configFolder.add(settings, 'show_dark_matter').listen();
             const MassFolder = settings.gui.addFolder(`Masses:`);
             const SizeFolder = settings.gui.addFolder(`Sizes:`);
             for (const c of settings.colors) {
-                MassFolder.add(settings.masses, c, 1, 20, 0.01).listen();
+                MassFolder.add(settings.masses, c, 1, 200, 0.01).listen();
                 SizeFolder.add(settings.sizes, c, 1, 10, 0.01).listen();
                 PopulationFolder.add(settings.population, c, 1, 1000, 1).listen().onFinishChange(v => {
                     generatePop(settings.population, true)
@@ -167,7 +177,26 @@
                 for (let j = 0; j < settings.colors.length; j++) {
                     ruleRow.push(settings.rules[settings.colors[i]][settings.colors[j]])
                 }
+                if (settings.parallel_universe) {
+                    for (let j = 0; j < settings.colors.length; j++) {
+                        ruleRow.push(0);
+                    }
+                }
                 settings.rulesArray.push(ruleRow)
+            }
+
+            if (settings.parallel_universe) {
+                //push inverse rules
+                for (let i = 0; i < settings.colors.length; i++) {
+                    const ruleRow = []
+                    for (let j = 0; j < settings.colors.length; j++) {
+                        ruleRow.push(0);
+                    }
+                    for (let j = 0; j < settings.colors.length; j++) {
+                        ruleRow.push(-1 * settings.rules[settings.colors[i]][settings.colors[j]]);
+                    }
+                    settings.rulesArray.push(ruleRow);
+                }
             }
         }
 
@@ -205,6 +234,14 @@
 
         function generatePop(population, clear_previous) {
             if (clear_previous) atoms.length = 0;
+
+            if (settings.parallel_universe) {
+                //inverse pop
+                for (let c = 0; c < settings.colors.length; c++) {
+                    create(population[settings.colors[c]], c + settings.colors.length);
+                }
+            }
+
             for (let c = 0; c < settings.colors.length; c++) {
                 create(population[settings.colors[c]], c);
             }
@@ -251,8 +288,8 @@
                         const d = dx * dx + dy * dy;
                         if (d < r2) {
                             const F = g / Math.sqrt(d);
-                            fx += F * dx * settings.masses[settings.colors[b[4]]] / settings.masses[settings.colors[a[4]]];
-                            fy += F * dy * settings.masses[settings.colors[b[4]]] / settings.masses[settings.colors[a[4]]];
+                            fx += F * dx * settings.masses[settings.colors[b[4] % settings.colors.length]] / settings.masses[settings.colors[a[4] % settings.colors.length]];
+                            fy += F * dy * settings.masses[settings.colors[b[4] % settings.colors.length]] / settings.masses[settings.colors[a[4] % settings.colors.length]];
                         }
                     }
                 }
@@ -331,7 +368,15 @@
             }
 
             for (let a of atoms) {
-                draw(a[0], a[1], settings.colors[a[4]], settings.sizes[settings.colors[a[4]]]);
+                var c = settings.colors[a[4]]
+                if (a[4] >= settings.colors.length) {
+                    if (settings.parallel_universe && settings.show_dark_matter) {
+                        c = settings.colors_inv[a[4] - settings.colors.length];
+                    }else{
+                        continue;
+                    }
+                }
+                draw(a[0], a[1], c, settings.sizes[settings.colors[a[4] % settings.colors.length]]);
             }
             updateParams();
 
